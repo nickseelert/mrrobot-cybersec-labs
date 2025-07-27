@@ -1,0 +1,45 @@
+# Docker volumes and generated files
+captures/
+logs/
+*.pcap
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Security - never commit real credentials
+**/real-credentials.txt
+**/production.env
+*.key
+*.pem
+*.crt
+
+# Student work
+student-submissions/
+grading/
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+
+# Docker
+.docker/

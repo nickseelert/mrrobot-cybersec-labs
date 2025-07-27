@@ -1,0 +1,135 @@
+version: '3.8'
+
+networks:
+  steelmountain:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+
+services:
+  # OSINT Tools Container
+  osint-tools:
+    build:
+      context: ./tools
+      dockerfile: Dockerfile
+    container_name: osint-tools
+    hostname: osint-workstation
+    networks:
+      steelmountain:
+        ipv4_address: 172.21.0.10
+    volumes:
+      - ./data:/data
+      - ./scripts:/scripts
+    stdin_open: true
+    tty: true
+    environment:
+      - LAB_MODE=training
+
+  # Steel Mountain Corporate Website
+  company-site:
+    build:
+      context: ./targets/company-site
+      dockerfile: Dockerfile
+    container_name: steel-mountain-web
+    hostname: steelmountain-corp
+    networks:
+      steelmountain:
+        ipv4_address: 172.21.0.20
+    ports:
+      - "8082:80"
+    volumes:
+      - ./targets/company-site/content:/var/www/html
+    environment:
+      - COMPANY_NAME=Steel Mountain Data Security
+
+  # Email/Phishing Server
+  phishing-server:
+    build:
+      context: ./targets/phishing
+      dockerfile: Dockerfile
+    container_name: phishing-mail
+    hostname: mail-server
+    networks:
+      steelmountain:
+        ipv4_address: 172.21.0.30
+    ports:
+      - "8025:8025"  # Web UI
+      - "1025:1025"  # SMTP
+    environment:
+      - MAIL_DOMAIN=steelmountain-secure.com
+
+  # Social Media Simulator
+  social-simulator:
+    build:
+      context: ./targets/social-media
+      dockerfile: Dockerfile
+    container_name: social-media-sim
+    hostname: social-platform
+    networks:
+      steelmountain:
+        ipv4_address: 172.21.0.40
+    ports:
+      - "8083:80"
+    environment:
+      - PLATFORM_NAME=LinkedOut
+
+  # Target Employee Simulator (chatbot/email responder)
+  employee-simulator:
+    build:
+      context: ./targets/employee-sim
+      dockerfile: Dockerfile
+    container_name: employee-simulator
+    hostname: employee-responses
+    networks:
+      steelmountain:
+        ipv4_address: 172.21.0.50
+    environment:
+      - RESPONSE_DELAY=30
+      - SECURITY_AWARENESS=low
+
+  # Database with employee information
+  employee-db:
+    image: postgres:13
+    container_name: employee-database
+    hostname: hr-database
+    networks:
+      steelmountain:
+        ipv4_address: 172.21.0.60
+    environment:
+      - POSTGRES_DB=employees
+      - POSTGRES_USER=hruser
+      - POSTGRES_PASSWORD=hr123456
+    volumes:
+      - ./targets/osint-data/db-init:/docker-entrypoint-initdb.d
+
+  # Wiki/Documentation Server
+  wiki-server:
+    build:
+      context: ./targets/wiki
+      dockerfile: Dockerfile
+    container_name: steel-wiki
+    hostname: internal-wiki
+    networks:
+      steelmountain:
+        ipv4_address: 172.21.0.70
+    ports:
+      - "8084:80"
+    environment:
+      - WIKI_TITLE=Steel Mountain Internal Wiki
+
+  # Lab Monitor
+  monitor:
+    build:
+      context: ./monitor
+      dockerfile: Dockerfile
+    container_name: lab2-monitor
+    hostname: monitor
+    networks:
+      steelmountain:
+        ipv4_address: 172.21.0.250
+    volumes:
+      - ./logs:/logs
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - LAB_ID=lab2-social-engineering

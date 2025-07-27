@@ -1,0 +1,121 @@
+version: '3.8'
+
+networks:
+  coffee-shop:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+services:
+  # Attacker's Kali Linux machine
+  kali-attacker:
+    image: kalilinux/kali-rolling:latest
+    container_name: kali-attacker
+    hostname: kali-attacker
+    networks:
+      coffee-shop:
+        ipv4_address: 172.20.0.10
+    volumes:
+      - ./captures:/captures
+      - ./scripts:/scripts
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    command: tail -f /dev/null
+    stdin_open: true
+    tty: true
+
+  # Coffee shop web server (vulnerable)
+  target-web:
+    build:
+      context: ./targets/webserver
+      dockerfile: Dockerfile
+    container_name: coffee-shop-web
+    hostname: coffee-shop-web
+    networks:
+      coffee-shop:
+        ipv4_address: 172.20.0.20
+    ports:
+      - "8080:80"
+    environment:
+      - APP_ENV=vulnerable
+
+  # FTP server with weak credentials
+  target-ftp:
+    image: stilliard/pure-ftpd:latest
+    container_name: coffee-shop-ftp
+    hostname: coffee-shop-ftp
+    networks:
+      coffee-shop:
+        ipv4_address: 172.20.0.21
+    ports:
+      - "2121:21"
+    environment:
+      - PUBLICHOST=localhost
+      - FTP_USER_NAME=ron
+      - FTP_USER_PASS=coffee123
+      - FTP_USER_HOME=/home/ftpuser
+    volumes:
+      - ./targets/ftp-files:/home/ftpuser
+
+  # Database server (MySQL)
+  target-db:
+    image: mysql:5.7
+    container_name: coffee-shop-db
+    hostname: coffee-shop-db
+    networks:
+      coffee-shop:
+        ipv4_address: 172.20.0.22
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpass123
+      - MYSQL_DATABASE=customers
+      - MYSQL_USER=dbuser
+      - MYSQL_PASSWORD=dbpass123
+    volumes:
+      - ./targets/db-init:/docker-entrypoint-initdb.d
+
+  # Router simulation (vulnerable services)
+  target-router:
+    build:
+      context: ./targets/router
+      dockerfile: Dockerfile
+    container_name: coffee-shop-router
+    hostname: coffee-shop-router
+    networks:
+      coffee-shop:
+        ipv4_address: 172.20.0.1
+    cap_add:
+      - NET_ADMIN
+
+  # Client traffic simulator
+  client-simulator:
+    build:
+      context: ./targets/client
+      dockerfile: Dockerfile
+    container_name: client-simulator
+    hostname: customer-laptop
+    networks:
+      coffee-shop:
+        ipv4_address: 172.20.0.100
+    depends_on:
+      - target-web
+      - target-ftp
+    environment:
+      - TRAFFIC_INTERVAL=30
+
+  # Monitoring service (for instructor)
+  monitor:
+    build:
+      context: ./monitor
+      dockerfile: Dockerfile
+    container_name: lab-monitor
+    hostname: monitor
+    networks:
+      coffee-shop:
+        ipv4_address: 172.20.0.250
+    volumes:
+      - ./logs:/logs
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - LAB_ID=lab1-network-recon
